@@ -27,6 +27,10 @@ ENV HTTPD_ASC_URL https://www.apache.org/dist/httpd/httpd-$HTTPD_VERSION.tar.bz2
 ENV HTTPD_BZ2_FALLBACK_URL https://archive.apache.org/dist/httpd/httpd-$HTTPD_VERSION.tar.bz2
 ENV HTTPD_ASC_FALLBACK_URL https://archive.apache.org/dist/httpd/httpd-$HTTPD_VERSION.tar.bz2.asc
 
+# Patches to apply
+ENV HTTPD_PATCH_COUNT 0
+# End patch list
+
 # see https://httpd.apache.org/docs/2.4/install.html#requirements
 RUN set -x \
 	&& runDeps=' \
@@ -78,6 +82,19 @@ RUN set -x \
 	&& rm httpd.tar.bz2 \
 	&& cd src \
 	\
+	&& { \
+	   CTR=1; \
+	   while [ "$CTR" -le ${HTTPD_PATCH_COUNT} ]; do \
+	   	 eval "PATCH_SUM=\${HTTPD_PATCH_CHECKSUM${CTR}}"; \
+		 eval "PATCH_URL=\${HTTPD_PATCH_URL${CTR}}"; \
+		 PATCH_FILE=${PATCH_URL##*/}; \
+		 wget -O ${PATCH_FILE} "${PATCH_URL}" \
+		      && echo "${PATCH_SUM} ${PATCH_FILE}" | sha256sum -c - \
+		      && patch -p0 < ${PATCH_FILE} \
+		      && rm ${PATCH_FILE} || break 0; \
+		 CTR=`expr $CTR + 1`; \
+	   done \
+	; } \
 	&& gnuArch="$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)" \
 	&& ./configure \
 		--build="$gnuArch" \
